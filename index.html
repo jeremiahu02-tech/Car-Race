@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Cyber Drive Pro: Ultimate Edition</title>
+    <title>PRIME DRIVING: Ultimate Edition</title>
     <style>
         body {
             margin: 0;
@@ -131,7 +131,7 @@
 <body>
 
     <div id="main-menu" class="overlay">
-        <h1>CYBER DRIVE PRO</h1>
+        <h1>PRIME DRIVING</h1>
 
         <label>🏎️ SELECT YOUR VEHICLE</label>
         <select id="carSelect" onchange="updateGarageCar()">
@@ -152,11 +152,15 @@
             <option value="storm">Acid Rain Storm</option>
         </select>
 
-        <label>📻 AUDIO CHANNEL</label>
-        <select id="trackSelect">
-            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">Synth Drift Alpha</option>
-            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3">Overdrive Pulse</option>
-        </select>
+         <div class="menu-box">
+            <div class="hud-row">
+                <div>MUSIC TRACK CONTROLS</div>
+                <div style="color:var(--neon-yellow); font-size: 12px;" id="track-name-display">Track 1 Active</div>
+            </div>
+            <button class="btn" onclick="switchMusicTrack()">Change Song 🎵</button>
+        </div>
+    </div>
+
 
         <button class="ui-btn" onclick="startEngine()">Launch Engine</button>
     </div>
@@ -183,8 +187,7 @@
         </div>
     </div>
 
-    <audio id="audioNode" loop></audio>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
 
     <script>
         let scene, camera, renderer, playerGroup, trackFloor, weatherParticles;
@@ -272,8 +275,8 @@
 
         function buildEnvironment(type, weather) {
             // Environment Terrain Customization
-            let roadColor = '#0b0b12';
-            let sideColor = '#05050a';
+            let roadColor = 'black';
+            let sideColor = 'blue';
 
             if (type === "offroad") {
                 roadColor = '#553311';
@@ -309,6 +312,13 @@
                 weatherParticles = new THREE.Points(pGeo, pMat);
                 scene.add(weatherParticles);
             }
+        }
+        function switchMusicTrack() {
+            currentTrackIndex = (currentTrackIndex + 1) % musicPlaylist.length;
+            const audioObj = document.getElementById('bg-music');
+            audioObj.src = musicPlaylist[currentTrackIndex];
+            document.getElementById('track-name-display').innerText = `Track ${currentTrackIndex + 1} Loaded`;
+            if (isRacing) audioObj.play();
         }
 
         function spawnEntities() {
