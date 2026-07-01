@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cyber Drive Pro: Ultimate Edition</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #020205;
+            font-family: 'Segoe UI', sans-serif;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(6, 6, 15, 0.95);
+            z-index: 10;
+        }
+
+        h1 {
+            color: #00f3ff;
+            font-size: 42px;
+            text-shadow: 0 0 15px #00f3ff;
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+
+        label {
+            color: #8892b0;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 15px;
+            display: block;
+        }
+
+        .ui-btn {
+            background: linear-gradient(135deg, #ff007f, #aa0055);
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(255, 0, 127, 0.4);
+            margin-top: 25px;
+            text-transform: uppercase;
+        }
+
+        select {
+            background: #0d1117;
+            color: #00f3ff;
+            border: 1px solid #00f3ff;
+            padding: 8px 16px;
+            border-radius: 5px;
+            font-weight: bold;
+            min-width: 200px;
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        /* Gameplay Dashboard */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00f3ff;
+            font-size: 18px;
+            font-weight: bold;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ff007f;
+            display: none;
+            z-index: 5;
+        }
+
+        /* 4-Way Gaming D-Pad Layout */
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            display: none;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-sizing: border-box;
+            z-index: 5;
+        }
+
+        .pad-cluster {
+            display: grid;
+            grid-template-columns: 60px 60px 60px;
+            grid-template-rows: 60px 60px;
+            gap: 8px;
+        }
+
+        .btn {
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00f3ff;
+            border-radius: 12px;
+            color: #00f3ff;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn:active {
+            background: #00f3ff;
+            color: #000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="main-menu" class="overlay">
+        <h1>CYBER DRIVE PRO</h1>
+
+        <label>🏎️ SELECT YOUR VEHICLE</label>
+        <select id="carSelect" onchange="updateGarageCar()">
+            <option value="cyber">Apex Cyber-Coupe (Cyan)</option>
+            <option value="renegade">Renegade Muscle (Gold)</option>
+            <option value="phantom">Phantom Hypercar (Purple)</option>
+        </select>
+
+        <label>🌍 ENVIRONMENT MAP</label>
+        <select id="envSelect">
+            <option value="highway">Neon Neon Highway</option>
+            <option value="offroad">Rust Wasteland Offroad</option>
+        </select>
+
+        <label>🌧️ WEATHER MODIFIER</label>
+        <select id="weatherSelect">
+            <option value="clear">Clear Night Sky</option>
+            <option value="storm">Acid Rain Storm</option>
+        </select>
+
+        <label>📻 AUDIO CHANNEL</label>
+        <select id="trackSelect">
+            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">Synth Drift Alpha</option>
+            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3">Overdrive Pulse</option>
+        </select>
+
+        <button class="ui-btn" onclick="startEngine()">Launch Engine</button>
+    </div>
+
+    <div id="crash-screen" class="overlay" style="display:none;">
+        <h1 style="color:#ff0055;">VEHICLE CRASHED</h1>
+        <button class="ui-btn" style="background:#ff0055;" onclick="restartGame()">Respawn Chassis</button>
+    </div>
+
+    <div id="hud">
+        SCORE: <span id="scoreVal">0</span><br>
+        SPEED: <span id="speedVal">140</span> KM/H<br>
+        <span id="nitroAlert" style="color:#ff007f; display:none; font-weight:bold;">🔥 NITRO BOOST ACTIVE!</span>
+    </div>
+
+    <div class="controls" id="driveControls">
+        <div class="pad-cluster">
+            <div></div>
+            <div class="btn" id="upBtn">▲</div>
+            <div></div>
+            <div class="btn" id="leftBtn">◀</div>
+            <div class="btn" id="downBtn">▼</div>
+            <div class="btn" id="rightBtn">▶</div>
+        </div>
+    </div>
+
+    <audio id="audioNode" loop></audio>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        let scene, camera, renderer, playerGroup, trackFloor, weatherParticles;
+        let traffic = [], nitros = [], terrainScenery = [];
+        let score = 0, currentSpeed = 0.5, nitroTimer = 0;
+        let isPlaying = false;
+        let targetX = 0;
+        const laneWidth = 3.5;
+
+        // Input Polling Matrix
+        let keys = { ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false };
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x06060f, 0.025);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 4.2, 8);
+            camera.lookAt(0, 1.5, -2);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(5, 20, 5);
+            scene.add(sun);
+
+            // Container for player vehicle assets
+            playerGroup = new THREE.Group();
+            scene.add(playerGroup);
+
+            buildCarMesh("cyber"); // Load default garage car
+            setupInputStreams();
+
+            renderer.render(scene, camera);
+        }
+
+        // PROCEDURAL 3D GARAGE GENERATOR ENGINE
+        function buildCarMesh(type) {
+            // Flush existing meshes from target container
+            while (playerGroup.children.length > 0) { playerGroup.remove(playerGroup.children[0]); }
+
+            let primaryColor = '#00f3ff';
+            if (type === "renegade") primaryColor = '#ffaa00';
+            if (type === "phantom") primaryColor = '#aa00ff';
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.35, 3.2), new THREE.MeshPhongMaterial({ color: primaryColor }));
+            body.position.y = 0.3;
+
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 1.5), new THREE.MeshPhongMaterial({ color: '#1a1a24' }));
+            cabin.position.set(0, 0.6, 0.1);
+
+            const wGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.4, 16);
+            wGeo.rotateZ(Math.PI / 2);
+            const wMat = new THREE.MeshPhongMaterial({ color: '#111' });
+
+            const wheels = [new THREE.Mesh(wGeo, wMat), new THREE.Mesh(wGeo, wMat), new THREE.Mesh(wGeo, wMat), new THREE.Mesh(wGeo, wMat)];
+            wheels[0].position.set(-0.9, 0.38, 1); wheels[1].position.set(0.9, 0.38, 1);
+            wheels[2].position.set(-0.9, 0.38, -1); wheels[3].position.set(0.9, 0.38, -1);
+
+            playerGroup.add(body, cabin, ...wheels);
+        }
+
+        function updateGarageCar() {
+            buildCarMesh(document.getElementById('carSelect').value);
+            renderer.render(scene, camera);
+        }
+
+        function setupInputStreams() {
+            window.addEventListener('keydown', (e) => { if (isPlaying && e.key in keys) keys[e.key] = true; });
+            window.addEventListener('keyup', (e) => { if (isPlaying && e.key in keys) keys[e.key] = false; });
+
+            // Universal Touch Button Map Binding Matrix
+            const bindTouch = (id, keyName) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('touchstart', () => { keys[keyName] = true; });
+                el.addEventListener('touchend', () => { keys[keyName] = false; });
+            };
+            bindTouch('leftBtn', 'ArrowLeft'); bindTouch('rightBtn', 'ArrowRight');
+            bindTouch('upBtn', 'ArrowUp'); bindTouch('downBtn', 'ArrowDown');
+        }
+
+        function buildEnvironment(type, weather) {
+            // Environment Terrain Customization
+            let roadColor = '#0b0b12';
+            let sideColor = '#05050a';
+
+            if (type === "offroad") {
+                roadColor = '#553311';
+                sideColor = '#aa7744';
+                scene.fog.color.setHex(0xaa7744);
+                renderer.setClearColor(0xaa7744);
+            } else {
+                scene.fog.color.setHex(0x06060f);
+                renderer.setClearColor(0x06060f);
+            }
+
+            trackFloor = new THREE.Mesh(new THREE.PlaneGeometry(15, 1000), new THREE.MeshPhongMaterial({ color: roadColor }));
+            trackFloor.rotation.x = -Math.PI / 2;
+            scene.add(trackFloor);
+
+            const sideFloor = new THREE.Mesh(new THREE.PlaneGeometry(200, 1000), new THREE.MeshPhongMaterial({ color: sideColor }));
+            sideFloor.rotation.x = -Math.PI / 2;
+            sideFloor.position.y = -0.02;
+            scene.add(sideFloor);
+
+            // Weather System Particle Generator
+            if (weather === "storm") {
+                const pCount = 2000;
+                const pGeo = new THREE.BufferGeometry();
+                const positions = new Float32Array(pCount * 3);
+                for (let i = 0; i < pCount * 3; i += 3) {
+                    positions[i] = (Math.random() - 0.5) * 40;
+                    positions[i + 1] = Math.random() * 20;
+                    positions[i + 2] = (Math.random() - 0.5) * 100;
+                }
+                pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const pMat = new THREE.PointsMaterial({ color: '#00f3ff', size: 0.1 });
+                weatherParticles = new THREE.Points(pGeo, pMat);
+                scene.add(weatherParticles);
+            }
+        }
+
+        function spawnEntities() {
+            if (!isPlaying) return;
+
+            const lanes = [-laneWidth, 0, laneWidth];
+
+            // Spawn True Traffic Vehicles (Not Static Obstacles)
+            if (Math.random() < 0.6) {
+                const tCar = new THREE.Group();
+                const tBody = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 2.8), new THREE.MeshPhongMaterial({ color: '#ff0055' }));
+                tBody.position.y = 0.3;
+                const tGlass = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.3, 1), new THREE.MeshPhongMaterial({ color: '#fff' }));
+                tGlass.position.set(0, 0.55, -0.2);
+                tCar.add(tBody, tGlass);
+                tCar.position.set(lanes[Math.floor(Math.random() * lanes.length)], 0, -120);
+                scene.add(tCar);
+                traffic.push(tCar);
+            }
+
+            // Spawn Glowing Green Nitro Pads on Ground
+            if (Math.random() < 0.25) {
+                const nPad = new THREE.Mesh(new THREE.BoxGeometry(2, 0.05, 2), new THREE.MeshBasicMaterial({ color: '#00ff00' }));
+                nPad.position.set(lanes[Math.floor(Math.random() * lanes.length)], 0.01, -120);
+                scene.add(nPad);
+                nitros.push(nPad);
+            }
+
+            setTimeout(spawnEntities, 1000);
+        }
+
+        function engineTick() {
+            if (!isPlaying) return;
+            requestAnimationFrame(engineTick);
+
+            // Handle Key Processing States Dynamically
+            if (keys.ArrowLeft && targetX > -laneWidth) { targetX -= laneWidth; keys.ArrowLeft = false; }
+            if (keys.ArrowRight && targetX < laneWidth) { targetX += laneWidth; keys.ArrowRight = false; }
+
+            // Analog Variable Velocity System (Gas vs. Brake)
+            if (keys.ArrowUp) currentSpeed = Math.min(1.2, currentSpeed + 0.01);
+            else if (keys.ArrowDown) currentSpeed = Math.max(0.2, currentSpeed - 0.01);
+
+            // Manage Nitro Timeline State
+            if (nitroTimer > 0) {
+                nitroTimer--;
+                currentSpeed = 1.6; // Lock max speed velocity vector
+                document.getElementById('nitroAlert').style.display = 'inline';
+            } else {
+                document.getElementById('nitroAlert').style.display = 'none';
+            }
+
+            playerGroup.position.x += (targetX - playerGroup.position.x) * 0.25;
+
+            // Animate Weather Systems
+            if (weatherParticles) {
+                const pos = weatherParticles.geometry.attributes.position.array;
+                for (let i = 1; i < pos.length; i += 3) {
+                    pos[i] -= 0.4; // Speed of rain falling
+                    if (pos[i] < 0) pos[i] = 20; // Teleport back to top
+                }
+                weatherParticles.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // Move Active Traffic Objects
+            for (let i = traffic.length - 1; i >= 0; i--) {
+                traffic[i].position.z += currentSpeed * 1.2;
+
+                // Hitbox Vector Collisions
+                if (new THREE.Box3().setFromObject(playerGroup).intersectsBox(new THREE.Box3().setFromObject(traffic[i]))) {
+                    handleCrash();
+                    return;
+                }
+                if (traffic[i].position.z > 15) {
+                    scene.remove(traffic[i]); traffic.splice(i, 1);
+                    score += 50;
+                }
+            }
+
+            // Move Nitro Fuel Pads
+            for (let i = nitros.length - 1; i >= 0; i--) {
+                nitros[i].position.z += currentSpeed * 1.2;
+
+                if (new THREE.Box3().setFromObject(playerGroup).intersectsBox(new THREE.Box3().setFromObject(nitros[i]))) {
+                    nitroTimer = 120; // 120 Frames of Boost
+                    scene.remove(nitros[i]); nitros.splice(i, 1);
+                    score += 100;
+                    continue;
+                }
+                if (nitros[i].position.z > 15) { scene.remove(nitros[i]); nitros.splice(i, 1); }
+            }
+
+            // Render Dashboard Output
+            document.getElementById('scoreVal').innerText = score;
+            document.getElementById('speedVal').innerText = Math.floor(currentSpeed * 220);
+
+            renderer.render(scene, camera);
+        }
+
+        function startEngine() {
+            const audio = document.getElementById('audioNode');
+            audio.src = document.getElementById('trackSelect').value;
+            audio.play().catch(() => { });
+
+            buildEnvironment(document.getElementById('envSelect').value, document.getElementById('weatherSelect').value);
+
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            if (window.innerWidth < 768) document.getElementById('driveControls').style.display = 'flex';
+
+            isPlaying = true;
+            spawnEntities();
+            engineTick();
+        }
+
+        function handleCrash() {
+            isPlaying = false;
+            document.getElementById('audioNode').pause();
+            document.getElementById('crash-screen').style.display = 'flex';
+        }
+
+        function restartGame() {
+            location.reload(); // Hard system flush resets variables completely
+        }
+
+        window.onload = init;
+    </script>
+</body>
+
+</html>
